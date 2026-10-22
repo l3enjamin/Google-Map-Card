@@ -313,59 +313,79 @@
     if (_isLogo) {
       const _card = Object.values(this).find(v => v && (v.config || v._config)) || this.card;
       const _cardCfg = _card?.config || _card?._config || {};
-      const _fit = _cardCfg.logo_fit || _cardCfg.image_pin_fit || 'cover';
-      const _rad = _cardCfg.logo_border_radius ?? _cardCfg.image_pin_radius ?? 8;
-      const _bg = _cardCfg.logo_bg ?? _cardCfg.image_pin_bg ?? '#ffffff';
-      const _stroke = _cardCfg.logo_border_color ?? 'rgba(0,0,0,0.15)';
-      const _strokeW = _cardCfg.logo_border_width ?? 1;
-
-      const _rx = _0x53735;
-      const _ry = _0x53735;
-      const _rw = _0x50bd66;
-      const _rh = _0x50bd66;
-
-      _0x57e80b.save();
-      _0x57e80b.beginPath();
-      if (_0x57e80b.roundRect) {
-        _0x57e80b.roundRect(_rx, _ry, _rw, _rh, _rad);
-      } else {
-        _0x57e80b.rect(_rx, _ry, _rw, _rh);
-      }
-      _0x57e80b.fillStyle = _bg;
-      _0x57e80b.fill();
-      if (_strokeW > 0) {
-        _0x57e80b.lineWidth = _strokeW;
-        _0x57e80b.strokeStyle = _stroke;
-        _0x57e80b.stroke();
-      }
-      _0x57e80b.clip();
-
       const _nw = _img.naturalWidth || _img.width || 1;
       const _nh = _img.naturalHeight || _img.height || 1;
+      const _ar = _nw / _nh;
 
-      if (_fit === 'contain' || _fit === 'pad') {
-        const _pad = 4;
-        const _maxW = Math.max(1, _rw - _pad * 2);
-        const _maxH = Math.max(1, _rh - _pad * 2);
-        let _dw = _maxW, _dh = _maxH;
-        if (_nw / _nh > _maxW / _maxH) {
-          _dh = _maxW * (_nh / _nw);
+      const _aspectMode = _cardCfg.logo_aspect || 'auto'; // 'auto' (rectangular box matching logo aspect) or 'square'
+      let _boxW = _0x50bd66, _boxH = _0x50bd66;
+
+      if (_aspectMode === 'auto') {
+        const _baseH = _cardCfg.logo_height || 32;
+        const _maxW = _cardCfg.logo_max_width || 96;
+        const _maxH = _cardCfg.logo_max_height || 64;
+
+        if (_ar >= 1) {
+          _boxH = _baseH;
+          _boxW = Math.round(_boxH * _ar);
+          if (_boxW > _maxW) {
+            _boxW = _maxW;
+            _boxH = Math.round(_boxW / _ar);
+          }
         } else {
-          _dw = _maxH * (_nw / _nh);
+          _boxW = _baseH;
+          _boxH = Math.round(_boxW / _ar);
+          if (_boxH > _maxH) {
+            _boxH = _maxH;
+            _boxW = Math.round(_boxH * _ar);
+          }
         }
-        const _dx = _rx + (_rw - _dw) / 2;
-        const _dy = _ry + (_rh - _dh) / 2;
-        _0x57e80b.drawImage(_img, _dx, _dy, _dw, _dh);
-      } else {
-        // 'cover' / 'crop' default: cuts rounded corners directly into rectangular image without white letterboxing
-        const _scale = Math.max(_rw / _nw, _rh / _nh);
-        const _dw = _nw * _scale;
-        const _dh = _nh * _scale;
-        const _dx = _rx + (_rw - _dw) / 2;
-        const _dy = _ry + (_rh - _dh) / 2;
-        _0x57e80b.drawImage(_img, _dx, _dy, _dw, _dh);
       }
-      _0x57e80b.restore();
+
+      const _border = _0x53735 || 2;
+      const _markerW = _boxW + _border * 2;
+      const _markerH = _boxH + _border * 2;
+      const _dpr = Math.round(window.devicePixelRatio || 1);
+
+      const _logoCanvas = document.createElement('canvas');
+      _logoCanvas.width = _markerW * _dpr;
+      _logoCanvas.height = _markerH * _dpr;
+      const _ctx = _logoCanvas.getContext('2d');
+      _ctx.scale(_dpr, _dpr);
+
+      const _rad = Math.min(_cardCfg.logo_border_radius ?? 6, Math.min(_boxW, _boxH) / 2);
+      const _bg = _cardCfg.logo_bg ?? '#ffffff';
+      const _stroke = _cardCfg.logo_border_color ?? 'rgba(0,0,0,0.18)';
+      const _strokeW = _cardCfg.logo_border_width ?? 1;
+      const _pad = _cardCfg.logo_padding ?? 0;
+
+      // Draw rounded rectangular box
+      _ctx.beginPath();
+      if (_ctx.roundRect) {
+        _ctx.roundRect(_border, _border, _boxW, _boxH, _rad);
+      } else {
+        _ctx.rect(_border, _border, _boxW, _boxH);
+      }
+      _ctx.fillStyle = _bg;
+      _ctx.fill();
+
+      if (_strokeW > 0) {
+        _ctx.lineWidth = _strokeW;
+        _ctx.strokeStyle = _stroke;
+        _ctx.stroke();
+      }
+
+      // Clip image to the rounded rectangular box so corners cut directly into the image
+      _ctx.save();
+      _ctx.clip();
+      _ctx.drawImage(_img, _border + _pad, _border + _pad, _boxW - _pad * 2, _boxH - _pad * 2);
+      _ctx.restore();
+
+      return {
+        'url': _logoCanvas.toDataURL(),
+        'scaledSize': new google.maps.Size(_markerW, _markerH),
+        'anchor': new google.maps.Point(_markerW / 2, _markerH / 2)
+      };
     } else {
       _0x57e80b[_0x4ceec1(0x1a3c,0x208e,0x127e,0xfe0)]();
       _0x57e80b[_0x4ceec1(-0xb04,0x1b4f,0x6a2,0x1e6f)](_0x43c6cb,_0x280b5f,_0x36afe1['ukXje'](_0x50bd66,-0x1*-0x1587+-0xd5e+-0x1*0x827),0x1e3a+0x18*-0x40+-0x183a,_0x36afe1[_0x4ceec1(0x3d4f,0x35be,0x2c82,0x26ca)](Math['PI'],-0x1523+-0x264f+0x3b74));
