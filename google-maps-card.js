@@ -679,7 +679,7 @@
     // Standard HA verbiage: picture_aspect, picture_height, picture_max_width, picture_shape, picture_border_radius
     // If it's an MDI vector icon, a person entity, or has no custom picture, it MUST be 'circle'
     let _aspectMode = 'circle';
-    if (!_isPerson && !_isSvg && !_hasIcon && _hasPic) {
+    if (!_isPerson && !_isSvg && _hasPic) {
       _aspectMode = _matchedEntCfg?.picture_aspect ?? _stateAttr.picture_aspect ?? _stateAttr.entity_picture_aspect ?? _cardCfg.picture_aspect ?? 'auto';
     }
 
@@ -779,7 +779,21 @@
       _0x57e80b[_0x4ceec1(-0xb04,0x1b4f,0x6a2,0x1e6f)](_0x43c6cb,_0x280b5f,_0x36afe1['ukXje'](_0x50bd66,-0x1*-0x1587+-0xd5e+-0x1*0x827),0x1e3a+0x18*-0x40+-0x183a,_0x36afe1[_0x4ceec1(0x3d4f,0x35be,0x2c82,0x26ca)](Math['PI'],-0x1523+-0x264f+0x3b74));
       _0x57e80b[_0x4ceec1(-0xcb4,0x1e8c,0xac3,0x23f)]();
       if (_matchedEntCfg?.show_icon !== false && _matchedEntCfg?.icon !== false) {
-        _0x57e80b['drawImage'](_img, _0x53735, _0x53735, _0x50bd66, _0x50bd66);
+        const _nw = _img.naturalWidth || _img.width || 1;
+        const _nh = _img.naturalHeight || _img.height || 1;
+        const _ar = _nw / _nh;
+        const _iconScale = _matchedEntCfg?.icon_scale ?? (_isSvg ? 1.05 : 1.0);
+        let _dw = _50bd66, _dh = _50bd66;
+        if (_ar > 1) {
+          _dh = Math.round(_50bd66 / _ar);
+        } else if (_ar < 1) {
+          _dw = Math.round(_50bd66 * _ar);
+        }
+        _dw = Math.round(_dw * _iconScale);
+        _dh = Math.round(_dh * _iconScale);
+        const _dx = _43c6cb - Math.round(_dw / 2);
+        const _dy = _280b5f - Math.round(_dh / 2);
+        _0x57e80b['drawImage'](_img, _dx, _dy, _dw, _dh);
       }
     }
   }
