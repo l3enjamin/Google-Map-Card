@@ -469,12 +469,20 @@
       const isDark = document.querySelector('html')?.getAttribute('data-theme') === 'dark' ||
         window.matchMedia('(prefers-color-scheme: dark)').matches;
 
-      // Group buttons by position
+      // Group filters by position
       const byPos = new Map();
       for (const f of filterDefs) {
         const pos = f.position || 'TOP_RIGHT';
         if (!byPos.has(pos)) byPos.set(pos, []);
         byPos.get(pos).push(f);
+      }
+
+      // Cleanup any previous containers
+      if (this.controlContainers && this.controlContainers.size) {
+        for (const [_, c] of this.controlContainers.entries()) {
+          try { c?.remove?.(); } catch(_) {}
+        }
+        this.controlContainers.clear();
       }
 
       for (const [posName, filtersInPos] of byPos.entries()) {
@@ -483,90 +491,262 @@
         const container = document.createElement('div');
         container.className = `gmc-layer-filters-container gmc-filters-${posName.toLowerCase()}`;
         container.style.cssText = `
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 5px;
-          padding: 5px 6px;
+          position: relative;
           margin: 10px;
-          background: ${isDark ? 'rgba(32, 33, 36, 0.92)' : 'rgba(255, 255, 255, 0.95)'};
-          backdrop-filter: blur(8px);
-          border-radius: 8px;
-          box-shadow: 0 2px 6px ${isDark ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.18)'};
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-          font-size: 11px;
-          font-weight: 600;
-          z-index: 10;
           user-select: none;
+          z-index: 10;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         `;
+
+        // Filter button matching google-map-card / Google Maps native controls
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'gmc-filter-btn gmc-filter-dropdown-toggle';
+        btn.title = layerFiltersCfg?.title || '圖層篩選';
+        btn.style.cssText = `
+          width: 40px;
+          height: 40px;
+          min-width: 40px;
+          min-height: 40px;
+          padding: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          background: ${isDark ? 'rgba(33, 33, 33, 0.92)' : '#ffffff'};
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          color: ${isDark ? '#e8eaed' : '#5f6368'};
+          border: ${isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.08)'};
+          border-radius: 4px;
+          box-shadow: 0 2px 6px ${isDark ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.22)'};
+          cursor: pointer;
+          outline: none;
+          transition: background-color 0.16s ease, border-color 0.16s ease;
+        `;
+
+        const mainIcon = layerFiltersCfg?.icon || 'mdi:layers-outline';
+        const iconEl = document.createElement('ha-icon');
+        iconEl.setAttribute('icon', mainIcon);
+        iconEl.style.cssText = `
+          --mdc-icon-size: 20px;
+          width: 20px;
+          height: 20px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          pointer-events: none;
+        `;
+        btn.appendChild(iconEl);
+
+        // Status indicator dot (blue dot in corner when any filter is disabled)
+        const indicatorDot = document.createElement('span');
+        indicatorDot.className = 'gmc-filter-indicator';
+        indicatorDot.style.cssText = `
+          position: absolute;
+          top: 5px;
+          right: 5px;
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: #1a73e8;
+          display: none;
+          pointer-events: none;
+        `;
+        btn.appendChild(indicatorDot);
+
+        // Dropdown menu
+        const dropdown = document.createElement('div');
+        dropdown.className = 'gmc-filter-dropdown-menu';
+        const isRight = posName.includes('RIGHT');
+        const isBottom = posName.includes('BOTTOM');
+        dropdown.style.cssText = `
+          position: absolute;
+          ${isRight ? 'right: 0;' : 'left: 0;'}
+          ${isBottom ? 'bottom: calc(100% + 8px);' : 'top: calc(100% + 8px);'}
+          min-width: 190px;
+          max-width: 280px;
+          background: ${isDark ? 'rgba(32, 33, 36, 0.96)' : 'rgba(255, 255, 255, 0.98)'};
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          color: ${isDark ? '#e8eaed' : '#202124'};
+          border: 1px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)'};
+          border-radius: 8px;
+          box-shadow: 0 4px 18px ${isDark ? 'rgba(0, 0, 0, 0.55)' : 'rgba(0, 0, 0, 0.18)'};
+          padding: 6px 0;
+          display: none;
+          flex-direction: column;
+          z-index: 1000;
+          overflow: hidden;
+        `;
+
+        // Optional Title Header
+        const headerTitle = layerFiltersCfg?.title || '圖層篩選';
+        if (headerTitle) {
+          const headerEl = document.createElement('div');
+          headerEl.style.cssText = `
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 5px 12px 6px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: ${isDark ? '#9aa0a6' : '#70757a'};
+            border-bottom: 1px solid ${isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'};
+            margin-bottom: 3px;
+          `;
+          headerEl.textContent = headerTitle;
+          dropdown.appendChild(headerEl);
+        }
+
+        const updateIndicator = () => {
+          const anyInactive = filtersInPos.some(f => this.filterStates.get(f.id) === false);
+          indicatorDot.style.display = anyInactive ? 'block' : 'none';
+        };
 
         for (const f of filtersInPos) {
           const active = f.default !== false;
           this.filterStates.set(f.id, active);
+          if (!active) {
+            this.applyFilter(f, false);
+          }
 
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'gmc-filter-btn';
-          btn.title = `Toggle ${f.name || f.id}`;
-          btn.style.cssText = `
-            display: inline-flex;
+          const itemRow = document.createElement('label');
+          itemRow.className = 'gmc-filter-item-row';
+          itemRow.style.cssText = `
+            display: flex;
             align-items: center;
-            gap: 4px;
-            border: none;
-            outline: none;
+            gap: 10px;
+            padding: 7px 12px;
+            margin: 1px 4px;
+            border-radius: 4px;
             cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
-            font-family: inherit;
-            transition: all 0.16s ease;
+            user-select: none;
+            transition: background 0.14s ease;
+            font-size: 13px;
+            font-weight: 500;
+            color: inherit;
           `;
 
+          itemRow.addEventListener('mouseenter', () => {
+            itemRow.style.background = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)';
+          });
+          itemRow.addEventListener('mouseleave', () => {
+            itemRow.style.background = 'transparent';
+          });
+
+          const chk = document.createElement('input');
+          chk.type = 'checkbox';
+          chk.checked = active;
+          chk.style.cssText = `
+            width: 16px;
+            height: 16px;
+            margin: 0;
+            cursor: pointer;
+            accent-color: var(--primary-color, #1a73e8);
+            flex-shrink: 0;
+          `;
+
+          itemRow.appendChild(chk);
+
           if (f.icon) {
-            const iconEl = document.createElement('ha-icon');
-            iconEl.setAttribute('icon', f.icon);
-            iconEl.style.cssText = `
-              --mdc-icon-size: 14px;
-              width: 14px;
-              height: 14px;
+            const iconItem = document.createElement('ha-icon');
+            iconItem.setAttribute('icon', f.icon);
+            iconItem.style.cssText = `
+              --mdc-icon-size: 18px;
+              width: 18px;
+              height: 18px;
               display: inline-flex;
               align-items: center;
               justify-content: center;
+              color: ${isDark ? '#bdc1c6' : '#5f6368'};
+              flex-shrink: 0;
             `;
-            btn.appendChild(iconEl);
+            itemRow.appendChild(iconItem);
           }
 
           const labelSpan = document.createElement('span');
           labelSpan.textContent = f.name || f.id;
-          btn.appendChild(labelSpan);
+          labelSpan.style.cssText = `
+            flex-grow: 1;
+            white-space: nowrap;
+          `;
+          itemRow.appendChild(labelSpan);
 
-          const updateBtnStyle = (isActive) => {
-            if (isActive) {
-              btn.style.background = isDark ? '#1a73e8' : '#00539B';
-              btn.style.color = '#ffffff';
-              btn.style.opacity = '1';
-              labelSpan.style.textDecoration = 'none';
-            } else {
-              btn.style.background = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.07)';
-              btn.style.color = isDark ? '#9aa0a6' : '#70757a';
-              btn.style.opacity = '0.65';
-              labelSpan.style.textDecoration = 'line-through';
-            }
+          const toggleFilter = (newState) => {
+            chk.checked = newState;
+            this.filterStates.set(f.id, newState);
+            this.applyFilter(f, newState);
+            updateIndicator();
           };
 
-          updateBtnStyle(active);
-
-          btn.addEventListener('click', (ev) => {
+          chk.addEventListener('change', (ev) => {
             ev.stopPropagation();
-            const newState = !this.filterStates.get(f.id);
-            this.filterStates.set(f.id, newState);
-            updateBtnStyle(newState);
-            this.applyFilter(f, newState);
+            toggleFilter(chk.checked);
           });
 
-          container.appendChild(btn);
+          itemRow.addEventListener('click', (ev) => {
+            if (ev.target === chk) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            toggleFilter(!chk.checked);
+          });
+
+          dropdown.appendChild(itemRow);
         }
+
+        updateIndicator();
+
+        // Dropdown toggle & outside-click dismissal
+        let isDropdownOpen = false;
+        const closeDropdown = () => {
+          if (!isDropdownOpen) return;
+          isDropdownOpen = false;
+          dropdown.style.display = 'none';
+          btn.style.background = isDark ? 'rgba(33, 33, 33, 0.92)' : '#ffffff';
+          btn.style.borderColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)';
+          document.removeEventListener('pointerdown', onDocPointerDown, true);
+        };
+
+        const openDropdown = () => {
+          if (isDropdownOpen) return;
+          isDropdownOpen = true;
+          dropdown.style.display = 'flex';
+          btn.style.background = isDark ? '#424242' : '#f1f3f4';
+          btn.style.borderColor = '#1a73e8';
+          document.addEventListener('pointerdown', onDocPointerDown, true);
+        };
+
+        const onDocPointerDown = (ev) => {
+          if (!container.contains(ev.target)) {
+            closeDropdown();
+          }
+        };
+
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          if (isDropdownOpen) {
+            closeDropdown();
+          } else {
+            openDropdown();
+          }
+        });
+
+        btn.addEventListener('mouseenter', () => {
+          if (!isDropdownOpen) {
+            btn.style.background = isDark ? '#3d3d3d' : '#f1f3f4';
+          }
+        });
+        btn.addEventListener('mouseleave', () => {
+          if (!isDropdownOpen) {
+            btn.style.background = isDark ? 'rgba(33, 33, 33, 0.92)' : '#ffffff';
+          }
+        });
+
+        container.appendChild(btn);
+        container.appendChild(dropdown);
 
         if (this.map?.controls?.[posVal]) {
           this.map.controls[posVal].push(container);
@@ -640,7 +820,7 @@
 
       // 2. GeoJSON Layers toggle
       const targetMap = active ? (this.map || this.card?.map) : null;
-      const geoLayers = this.card?._geojsonData;
+      const geoLayers = this.card?._geojsonData || this.map?._geojsonData || (this.card?.map && this.card.map._geojsonData) || [];
       const geoConfigs = cardCfg.geojson_layers;
       if (geoLayers && geoLayers.length) {
         for (let i = 0; i < geoLayers.length; i++) {
