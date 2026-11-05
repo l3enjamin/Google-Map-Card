@@ -73,19 +73,20 @@
   }
 
   function projectPointOnSegment(pLat, pLng, aLat, aLng, bLat, bLng) {
-    const abX = bLng - aLng;
+    const cosLat = Math.cos(pLat * Math.PI / 180);
+    const abX = (bLng - aLng) * cosLat;
     const abY = bLat - aLat;
-    const apX = pLng - aLng;
+    const apX = (pLng - aLng) * cosLat;
     const apY = pLat - aLat;
     const abLenSq = abX * abX + abY * abY;
-    if (abLenSq === 0) return { lat: aLat, lng: aLng, t: 0, distSq: apX*apX + apY*apY };
+    if (abLenSq === 0) return { lat: aLat, lng: aLng, t: 0, distSq: apX * apX + apY * apY };
     let t = (apX * abX + apY * abY) / abLenSq;
     t = Math.max(0, Math.min(1, t));
-    const projLat = aLat + t * abY;
-    const projLng = aLng + t * abX;
+    const projLat = aLat + t * (bLat - aLat);
+    const projLng = aLng + t * (bLng - aLng);
     const dLat = pLat - projLat;
-    const dLng = pLng - projLng;
-    return { lat: projLat, lng: projLng, t: t, distSq: dLat*dLat + dLng*dLng };
+    const dLng = (pLng - projLng) * cosLat;
+    return { lat: projLat, lng: projLng, t: t, distSq: dLat * dLat + dLng * dLng };
   }
 
   function advanceAlongPolylines(polylines, curLat, curLng, targetAdvanceMeters) {
@@ -234,14 +235,19 @@
       if (this.ingestTimer) clearInterval(this.ingestTimer);
       if (this.animTimer) cancelAnimationFrame(this.animTimer);
 
-      this.ingestTimer = setInterval(() => this.ingestTick(), 1000);
+      this.ingestTimer = setInterval(() => {
+        if (this.card && this.card.isConnected === false) return;
+        this.ingestTick();
+      }, 1000);
 
       let lastFrameTime = performance.now();
       const render = (now) => {
-        const elapsed = now - lastFrameTime;
-        if (elapsed >= this.frameIntervalMs) {
-          lastFrameTime = now - (elapsed % this.frameIntervalMs);
-          this.renderTick();
+        if (!this.card || this.card.isConnected !== false) {
+          const elapsed = now - lastFrameTime;
+          if (elapsed >= this.frameIntervalMs) {
+            lastFrameTime = now - (elapsed % this.frameIntervalMs);
+            this.renderTick();
+          }
         }
         this.animTimer = requestAnimationFrame(render);
       };
@@ -325,6 +331,13 @@
     ingestBuses(bounds, nowMs, dt) {
       const markersMap = getCardEntityMarkers(this.card);
       if (!markersMap) return;
+
+      // Prune stale vehicle states not observed in active markers for > 5 mins
+      for (const [key, state] of window._transitActiveVehicles.entries()) {
+        if (!markersMap.has(key) && nowMs - state.lastUpdateMs > 300000) {
+          window._transitActiveVehicles.delete(key);
+        }
+      }
 
       for (const [entityId, marker] of markersMap.entries()) {
         if (!entityId.startsWith('geo_location.') || !entityId.endsWith('_bus')) continue;
@@ -894,11 +907,10 @@
 
   window.GoogleMapFilterControl = GoogleMapFilterControl;
   window.TransitMotionEngine = TransitMotionEngine;
-  window.TransitMotionEngine = TransitMotionEngine;
 
   // Auto-attach watcher to ensure it binds to Google Map instances
   setInterval(() => {
-    const cards = document.querySelectorAll('*');
+    const cards = document.querySelectorAll('google-map-card');
     for (const el of cards) {
       if (el.map && !el._transitMotion) {
         el._transitMotion = new TransitMotionEngine(el, el.map);
@@ -1314,7 +1326,7 @@ try {
     }
     if (_rKey) {
       _rKey = String(_rKey).toLowerCase();
-      window._translinkRoutePolylines[_rKey] = window._translinkRoutePolylines[_rKey] || [];
+      window._translinkRoutePolylines[_rKey] = [];
       for (const _f of _0x58f895.features) {
         if (_f.geometry && _f.geometry.type === 'LineString') {
           window._translinkRoutePolylines[_rKey].push(_f.geometry.coordinates);
