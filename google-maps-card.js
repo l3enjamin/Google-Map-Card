@@ -129,14 +129,20 @@
     return curP;
   }
 
-  // Default vehicle route icons
+  // Generic vector vehicle icons (guarantees offline/out-of-box rendering anywhere)
+  const GENERIC_SUBWAY_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='26' height='26'><circle cx='12' cy='12' r='11' fill='%230072CE' stroke='%23ffffff' stroke-width='1.5'/><path d='M12 4c-3.5 0-6 .4-6 3.5v7c0 1.9 1.3 3.5 3 3.5L8 19.5v.5h8v-.5L15 18c1.7 0 3-1.6 3-3.5v-7c0-3.1-2.5-3.5-6-3.5zm-3 11a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4zm6 0a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4zm1-5H8V7.5h8V10z' fill='%23ffffff'/></svg>";
+  const GENERIC_BUS_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='26' height='26'><circle cx='12' cy='12' r='11' fill='%23008542' stroke='%23ffffff' stroke-width='1.5'/><path d='M16 9.5H8v-3h8v3zm-.8-5.5H8.8c-1.8 0-2.8 1-2.8 2.8v7.4c0 1.2.8 2.2 2 2.2v1.6c0 .5.4 1 1 1h.5c.6 0 1-.5 1-1V16h3v1.6c0 .5.4 1 1 1h.5c.6 0 1-.5 1-1V16c1.2 0 2-1 2-2.2V6.8c0-1.8-1-2.8-2.8-2.8zM9 13.8a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4zm6 0a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4z' fill='%23ffffff'/></svg>";
+
+  // Default vehicle route icons with backward-compatible aliases
   const DEFAULT_VEHICLE_ICONS = {
     'subway': '/local/translink/can-line.svg',
     'metro': '/local/translink/can-line.svg',
     'canada': '/local/translink/can-line.svg',
     'expo': '/local/translink/expo-line.svg',
     'millennium': '/local/translink/mil-line.svg',
-    'bus': '/local/translink/bus.svg'
+    'bus': '/local/translink/bus.svg',
+    'default_train': GENERIC_SUBWAY_SVG,
+    'default_bus': GENERIC_BUS_SVG
   };
 
   function getTransitVehicleIcon(routeKey, cardCfg, routeType) {
@@ -147,7 +153,7 @@
       (routeType && transitCfg[routeType]) ||
       DEFAULT_VEHICLE_ICONS[routeKey] ||
       (routeType && DEFAULT_VEHICLE_ICONS[routeType]) ||
-      DEFAULT_VEHICLE_ICONS['subway'];
+      (routeType === 'bus' || routeKey === 'bus' ? GENERIC_BUS_SVG : GENERIC_SUBWAY_SVG);
     const sz = transitCfg.size || cardCfg?.transit_motion?.vehicle_size || 26;
     return {
       url: iconUrl,
@@ -170,6 +176,17 @@
       this.fps = Math.max(5, Math.min(60, motionCfg.fps || 30));
       this.frameIntervalMs = 1000 / this.fps;
       this.minZoom = motionCfg.min_zoom ?? this.card?.config?.animation_min_zoom ?? 13;
+
+      // Dynamic YAML-configurable schedule URL
+      const customScheduleUrl = motionCfg.schedule_url || this.card?.config?.transit_schedule || this.card?.config?.schedule_url;
+      if (customScheduleUrl) {
+        loadSchedule(customScheduleUrl).then(data => {
+          if (data) {
+            window._transitSchedule = window._translinkSkyTrainSchedule = data;
+            console.log('[TransitMotion] Loaded custom transit schedule from YAML:', customScheduleUrl);
+          }
+        });
+      }
 
       this.setupListeners();
       this.startLoops();
@@ -1121,10 +1138,14 @@ try {
         if (_b && this['card']?._hass) {
           const _sw = _b.getSouthWest();
           const _ne = _b.getNorthEast();
-          this['card']._hass.callService('input_text', 'set_value', {
-            entity_id: 'input_text.translink_map_viewport',
-            value: _sw.lat().toFixed(4) + ',' + _sw.lng().toFixed(4) + ',' + _ne.lat().toFixed(4) + ',' + _ne.lng().toFixed(4)
-          });
+          const _cardCfg = this['card']?.config || this['card']?._config || {};
+          const _vpEntity = _cardCfg?.viewport_entity || _cardCfg?.bounds_entity || (this['card']._hass.states?.['input_text.translink_map_viewport'] ? 'input_text.translink_map_viewport' : null);
+          if (_vpEntity && this['card']._hass.states?.[_vpEntity]) {
+            this['card']._hass.callService('input_text', 'set_value', {
+              entity_id: _vpEntity,
+              value: _sw.lat().toFixed(4) + ',' + _sw.lng().toFixed(4) + ',' + _ne.lat().toFixed(4) + ',' + _ne.lng().toFixed(4)
+            });
+          }
         }
       } catch(_err) {}
     }, 1200);
@@ -1278,14 +1299,21 @@ if(!this['card'][_0x44ef87(-0x37a,-0x1e5,0x1dd2,0x5d6)])this[_0x44ef87(0x38da,0x
   };
 }),_0x96b5dd[_0xcf2c59(0x14a6,0xcd0,0x2a01,0x2c3)+'ta'][_0x101d52(0x11a2,0x156d,0x113f,0x2e0)](_0x15673a);const _0x48f814=_0x44c127=>{function _0x4d5519(_0x35ca35,_0x37d228,_0x1783cc,_0x3977d9){return _0x101d52(_0x35ca35-0x4b,_0x3977d9,_0x37d228-0xfe,_0x3977d9-0x70);}try{if(_0x44c127)_0x15673a[_0x4d5519(0x3110,0x1cf2,0x34a5,0x16cf)](_0x44c127);}catch(_0x42522b){}};if(_0x12f7b7[_0xcf2c59(0x2ddc,0x2e87,0x1d36,0x436c)]&&_0x2d80f9[_0x101d52(0x3a8f,0x4043,0x2f6d,0x38ad)](typeof _0x12f7b7[_0x101d52(0x22eb,0x26b1,0x30aa,0x285f)],_0x101d52(0x1604,0xf47,0xa16,0x2176)))_0x2d80f9['DnkwM'](_0x48f814,_0x12f7b7[_0xcf2c59(0x2ddc,0x2769,0x214d,0x15df)]);else{if(_0x12f7b7[_0x101d52(0x20bf,0x1827,0x14c1,0xfe9)]){const _0x2b04b6=_0x96b5dd[_0xcf2c59(0x2b97,0x4222,0x36b3,0x41e1)]?.[_0xcf2c59(0x283a,0x3190,0x292e,0x3f39)]?.[_0x12f7b7[_0xcf2c59(0x11f3,0x29de,0x230c,0x29d)]];let _0x22ab7f=_0x2b04b6?.[_0xcf2c59(0xb7a,-0x44e,-0x372,0x1bf1)]?.[_0x12f7b7[_0x101d52(0x1e34,0x303d,0x2f1d,0x335a)]||_0x2d80f9['QzBWl']]??_0x2b04b6?.[_0x101d52(0x28f8,0x689,0x1736,0x2cc7)];if(_0x2d80f9['LcSQX'](typeof _0x22ab7f,_0x2d80f9[_0xcf2c59(0xc8b,-0x337,-0xa6,0x1e7c)]))try{_0x22ab7f=JSON[_0x101d52(0x273c,0x1a8d,0x17e2,0x136c)](_0x22ab7f);}catch(_0x30f5fa){_0x22ab7f=null;}_0x2d80f9[_0xcf2c59(0xbc1,0x205a,-0x87e,0x1b9b)](_0x48f814,_0x22ab7f);}else{if(_0x12f7b7['url']){const _0x509bf8=_0x12f7b7[_0x101d52(0xfdf,0x1cb6,0x136a,0x297b)][_0xcf2c59(0x2456,0x3246,0x2a9b,0x1ff9)]('/')?''+window['location'][_0x101d52(0x12ea,0x1cc7,0x1841,0xa4b)]+_0x12f7b7['url']:_0x12f7b7[_0xcf2c59(0x109c,0xe0f,0x171e,0x155)];_0x2d80f9['qPybV'](fetch,_0x509bf8)['then'](_0x1614b7=>_0x1614b7['ok']?_0x1614b7['json']():null)['then'](_0x58f895=>{function _0x2b9b0f(_0x19b26f,_0x374e68,_0x16f631,_0x988a16){return _0x101d52(_0x19b26f-0x102,_0x988a16,_0x16f631- -0x3e7,_0x988a16-0x12f);}function _0x339aee(_0x99bd1e,_0x352475,_0x5c5159,_0x3764c3){return _0x101d52(_0x99bd1e-0x1c3,_0x3764c3,_0x352475- -0x467,_0x3764c3-0x96);}if(_0x96b5dd['_geojsonDa'+'ta'][_0x2b9b0f(0x21ac,0x13fb,0x2980,0x330a)](_0x15673a))_0x2e7de5[_0x2b9b0f(0x67f,-0x7c5,0x2f5,0x1064)](_0x48f814,_0x58f895);
 try {
-  if (_0x58f895 && _0x58f895.features && _0x12f7b7.url && window._translinkRoutePolylines) {
-    const _url = String(_0x12f7b7.url).toLowerCase();
-    let _rKey = null;
-    const _matches = ['430', '410', '301', 'n10', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'canada', 'expo', 'millennium'];
-    for (const _m of _matches) {
-      if (_url.includes(_m)) { _rKey = _m; break; }
+  if (_0x58f895 && _0x58f895.features && (_0x12f7b7.url || _0x12f7b7.route_key || _0x12f7b7.route_id) && window._translinkRoutePolylines) {
+    const _url = String(_0x12f7b7.url || '').toLowerCase();
+    let _rKey = _0x12f7b7.route_key || _0x12f7b7.route_id || _0x12f7b7.name || null;
+    if (!_rKey) {
+      const _matches = ['430', '410', '301', 'n10', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'canada', 'expo', 'millennium'];
+      for (const _m of _matches) {
+        if (_url.includes(_m)) { _rKey = _m; break; }
+      }
+    }
+    if (!_rKey && _url) {
+      const _clean = _url.split('/').pop().replace(/\.(geo)?json$/, '');
+      if (_clean) _rKey = _clean.toLowerCase();
     }
     if (_rKey) {
+      _rKey = String(_rKey).toLowerCase();
       window._translinkRoutePolylines[_rKey] = window._translinkRoutePolylines[_rKey] || [];
       for (const _f of _0x58f895.features) {
         if (_f.geometry && _f.geometry.type === 'LineString') {
