@@ -441,6 +441,8 @@
           id: f.id || f.group || f.name,
           name: f.name || f.label || f.id,
           icon: f.icon || null,
+          color: f.color || f.accent_color || null,
+          icon_color: f.icon_color || null,
           position: f.position || layerFiltersCfg?.position || 'TOP_RIGHT',
           default: f.default !== false,
           target: f.target || 'auto',
@@ -449,21 +451,48 @@
       } else if (rawFilterGroups && typeof rawFilterGroups === 'object') {
         filterDefs = Object.entries(rawFilterGroups).map(([id, f]) => ({
           id: id,
-          name: f.name || f.label || id,
-          icon: f.icon || null,
-          position: f.position || layerFiltersCfg?.position || 'TOP_RIGHT',
-          default: f.default !== false,
-          target: f.target || 'auto',
-          match: f.match || []
+          name: (typeof f === 'string') ? f : (f.name || f.label || id),
+          icon: (typeof f === 'object') ? (f.icon || null) : null,
+          color: (typeof f === 'object') ? (f.color || f.accent_color || null) : null,
+          icon_color: (typeof f === 'object') ? (f.icon_color || null) : null,
+          position: (typeof f === 'object' && f.position) || layerFiltersCfg?.position || 'TOP_RIGHT',
+          default: (typeof f === 'object' && f.default !== undefined) ? (f.default !== false) : true,
+          target: (typeof f === 'object' && f.target) || 'auto',
+          match: (typeof f === 'object' && f.match) || []
         }));
       } else {
-        filterDefs = [
-          { id: 'routes', name: 'Routes', icon: 'mdi:transit-connection-variant', position: 'TOP_RIGHT', default: true },
-          { id: 'vehicles', name: 'Vehicles', icon: 'mdi:train-car', position: 'TOP_RIGHT', default: true },
-          { id: 'transit_stops', name: 'Stops', icon: 'mdi:bus-stop', position: 'TOP_RIGHT', default: true },
-          { id: 'stores', name: 'Stores', icon: 'mdi:store', position: 'TOP_RIGHT', default: true },
-          { id: 'gas', name: 'Gas', icon: 'mdi:gas-station', position: 'TOP_RIGHT', default: true }
-        ];
+        // Auto-discover any filter_groups declared across entities, entityConfigs, or geojson_layers
+        const discovered = new Set();
+        if (Array.isArray(cardCfg.entities)) {
+          for (const e of cardCfg.entities) {
+            if (typeof e === 'object' && e?.filter_group) discovered.add(e.filter_group);
+          }
+        }
+        if (this.card?.entityConfigs) {
+          for (const ec of Object.values(this.card.entityConfigs)) {
+            if (ec?.filter_group) discovered.add(ec.filter_group);
+          }
+        }
+        if (Array.isArray(cardCfg.geojson_layers)) {
+          for (const l of cardCfg.geojson_layers) {
+            if (typeof l === 'object' && l?.filter_group) discovered.add(l.filter_group);
+          }
+        }
+        if (discovered.size > 0) {
+          filterDefs = Array.from(discovered).map(id => ({
+            id: id,
+            name: id.charAt(0).toUpperCase() + id.slice(1).replace(/_/g, ' '),
+            icon: null,
+            color: null,
+            icon_color: null,
+            position: layerFiltersCfg?.position || 'TOP_RIGHT',
+            default: true,
+            target: 'auto',
+            match: []
+          }));
+        } else {
+          return;
+        }
       }
 
       const isDark = document.querySelector('html')?.getAttribute('data-theme') === 'dark' ||
@@ -502,7 +531,7 @@
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'gmc-filter-btn gmc-filter-dropdown-toggle';
-        btn.title = layerFiltersCfg?.title || '圖層篩選';
+        btn.title = layerFiltersCfg?.title || 'Layers';
         btn.style.cssText = `
           width: 40px;
           height: 40px;
@@ -581,8 +610,8 @@
         `;
 
         // Optional Title Header
-        const headerTitle = layerFiltersCfg?.title || '圖層篩選';
-        if (headerTitle) {
+        const headerTitle = layerFiltersCfg?.title !== undefined ? layerFiltersCfg.title : 'Layers';
+        if (headerTitle && headerTitle !== false && headerTitle !== '') {
           const headerEl = document.createElement('div');
           headerEl.style.cssText = `
             display: flex;
@@ -637,6 +666,7 @@
             itemRow.style.background = 'transparent';
           });
 
+          const itemColor = f.color || f.accent_color || 'var(--primary-color, #1a73e8)';
           const chk = document.createElement('input');
           chk.type = 'checkbox';
           chk.checked = active;
@@ -645,7 +675,7 @@
             height: 16px;
             margin: 0;
             cursor: pointer;
-            accent-color: var(--primary-color, #1a73e8);
+            accent-color: ${itemColor};
             flex-shrink: 0;
           `;
 
@@ -661,7 +691,7 @@
               display: inline-flex;
               align-items: center;
               justify-content: center;
-              color: ${isDark ? '#bdc1c6' : '#5f6368'};
+              color: ${f.icon_color || f.color || (isDark ? '#bdc1c6' : '#5f6368')};
               flex-shrink: 0;
             `;
             itemRow.appendChild(iconItem);
