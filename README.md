@@ -74,6 +74,12 @@
 * **🧹 GPS Jitter Filter** 🆕 (v5.2) — per-entity `min_accuracy`: drop low-accuracy history points **inside your shown zones** so trails don't jump while stationary.
 * **🔢 Zone Occupancy Badge** 🆕 (v5.2) — show a count of how many tracked entities are inside each shown zone.
 * **📍 Address in Popups** 🆕 (v5.2) — reverse-geocoded street address in a marker's popup (`show_popup_address`, on by default). Uses free, keyless OpenStreetMap lookups — no Google Geocoding API needed.
+* **🚆 GTFS2 Transit Integration & Motion Engine** 🆕 — Works with the [GTFS2 (`vingerha/gtfs2`)](https://github.com/vingerha/gtfs2) custom integration and live transit feeds. Features decoupled 30 fps vehicle track interpolation along route polylines, dynamic schedules, and embedded offline vector vehicle icons.
+* **🎛️ Unified Frosted-Glass Filter Control** 🆕 — Single native-style control button with a frosted-glass dropdown menu to toggle marker layers on the fly. 100% YAML configurable via `filter_groups`.
+* **🏷️ Integration-Agnostic Entity Pictures & Badges** 🆕 — Configurable shape (`picture_shape: 'rectangle' | 'circle' | 'auto'`), nested dot-path extraction (`picture_attribute`), and direct fallback for cross-origin (CORS) images.
+* **💬 Dynamic Popups via `<ha-markdown allow-svg breaks>`** 🆕 — Custom marker popups evaluated dynamically via Home Assistant's WebSocket `render_template` API with Jinja2, HTML, and SVG support.
+* **🗺️ Modern Vector Map ID (`map_id`) & Advanced Markers** 🆕 — Support for Google Cloud Vector Map IDs, unlocking `google.maps.marker.AdvancedMarkerElement` with seamless fallback to `google.maps.Marker`.
+* **📐 Safe Viewport Synchronization** 🆕 — Debounced `idle` listener syncing map bounds (`southWestLat,southWestLng,northEastLat,northEastLng`) to a Home Assistant helper (`viewport_entity`).
 
 ![image4](images/routenew1.png) ![image4](images/tra.png) ![image4](images/flight.png) ![image4](images/themes1.png) ![image4](images/Picker.png) <br>
 
@@ -635,6 +641,142 @@ You can choose your best theme—40 now and more to come!
 
 ---
 
+# 🚆 GTFS2 Transit Integration & Smooth Motion Engine
+
+This card provides dedicated support for transit visualization in Home Assistant, designed specifically to integrate with the [GTFS2 (`vingerha/gtfs2`)](https://github.com/vingerha/gtfs2) custom integration and real-time public transit feeds.
+
+### Key Capabilities
+- **Decoupled 30 fps Motion**: High-frequency vehicle track interpolation is fully decoupled from 1 Hz backend data polling, producing fluid vehicle movement along route polylines with minimal CPU/GPU overhead.
+- **Dynamic Track Alignment**: Automatically advances vehicles along complex route geometry using distance-based polyline interpolation (`advanceAlongPolylines`).
+- **Universal Route Matching**: Matches vehicles to route geometries via `route_key`, `route_id`, `name`, or the GeoJSON filename slug.
+- **Embedded Offline Vector Fallbacks**: Includes standalone inline SVG vector vehicle icons (`GENERIC_SUBWAY_SVG`, `GENERIC_BUS_SVG`) so transit vehicles render cleanly out-of-the-box without requiring local image assets or triggering 404s.
+- **Custom Schedule Ingestion**: Load trip schedules via `transit_motion.schedule_url` for live ETA prediction and vehicle simulation.
+
+```yaml
+transit_motion:
+  enabled: true
+  schedule_url: "/local/transit/schedule.json"
+  update_interval_ms: 1000
+
+geojson_layers:
+  - url: "/local/transit/routes.geojson"
+    route_key: "line_1"
+    stroke_color: "#0072bc"
+    stroke_width: 3
+```
+
+---
+
+# 🎛️ Unified Frosted-Glass Layer Filter Control
+
+Instead of cluttering the map with multiple separate buttons, the card provides a unified, frosted-glass layer filter control.
+
+- **Native Look & Feel**: Styled as a compact $40\times 40\text{ px}$ control button with an active filter badge indicator dot.
+- **Customizable Filter Groups**: Group entities into intuitive categories (e.g., Live Vehicles, Stations, Gas Stations, Deals) with custom labels, MDI icons, and accent colors.
+- **Dynamic Association**: Entities and GeoJSON layers link to filter groups using the `filter_group` property.
+
+```yaml
+filter_control: true
+filter_groups:
+  - id: transit_live
+    label: "Live Transit"
+    icon: "mdi:bus-clock"
+    checked: true
+  - id: stations
+    label: "Stations & Stops"
+    icon: "mdi:train-car"
+    checked: true
+  - id: gas
+    label: "Gas Stations"
+    icon: "mdi:gas-station"
+    checked: true
+  - id: deals
+    label: "Store Deals"
+    icon: "mdi:tag-outline"
+    checked: false
+```
+
+---
+
+# 🏷️ Integration-Agnostic Entity Pictures & Badges
+
+Display photos, brand badges, and flyer images on the map from any Home Assistant integration without distortion or cropping.
+
+- **Configurable Shapes (`picture_shape`)**:
+  - `'circle'` (default): Classic circular avatar with border.
+  - `'rectangle'`: High-contrast rectangular card with configurable background, border color, and rounded corners.
+  - `'auto'`: Dynamically calculates source image aspect ratio to fit rectangular logos and banners without cropping.
+  - *(Note: `picture_aspect` is supported as a backwards-compatible alias)*.
+- **Attribute Path Resolution (`picture_attribute`)**: Extract images directly from entity attributes, including nested dot-paths (e.g. `deals.0.image_url` or `brand_logo`).
+- **Direct Cross-Origin Image Fallback**: Automatically falls back to direct image rendering for external image links lacking cross-origin (CORS) headers.
+
+```yaml
+entities:
+  # Gas station entity with price badge
+  - entity: sensor.shell_gas_price
+    picture_shape: rectangle
+    picture_height: 24
+    filter_group: gas
+
+  # Store entity with flyer deal extracted from nested attribute
+  - entity: sensor.local_store_deals
+    picture_attribute: "deals.0.image_url"
+    picture_shape: auto
+    card_background: "#ffffff"
+    filter_group: deals
+```
+
+---
+
+# 💬 Dynamic Popups with Jinja2 & `<ha-markdown allow-svg breaks>`
+
+Define custom, dynamic info window popups rendered directly via Home Assistant's WebSocket `render_template` API.
+
+- **Full Markdown, HTML & SVG**: Renders inside `<ha-markdown allow-svg breaks>` for full styling freedom.
+- **Dynamic Template Variables**: Templates receive `entity`, `state`, and `attributes` in context.
+
+```yaml
+entities:
+  - entity: sensor.local_store_deals
+    popup_template: >
+      <ha-markdown allow-svg breaks>
+      ### {{ attributes.friendly_name | default(entity) }}
+      {% if attributes.deals and attributes.deals[0] %}
+      **{{ attributes.deals[0].name }}**
+      <img src="{{ attributes.deals[0].image_url }}" style="max-width:100%;border-radius:8px;margin-top:6px;" />
+      {% else %}
+      *No active flyer deals available*
+      {% endif %}
+      </ha-markdown>
+```
+
+---
+
+# 🗺️ Modern Vector Map ID (`map_id`) & Advanced Markers
+
+Google Cloud Vector Maps provide high-performance WebGL rendering, smooth tilt and rotation, and support for modern `AdvancedMarkerElement`.
+
+- **Vector Map ID**: Configure `map_id` with your Google Cloud Map ID.
+- **Advanced Markers**: When `map_id` is supplied, the card automatically instantiates `google.maps.marker.AdvancedMarkerElement`. If omitted, the card seamlessly falls back to standard `google.maps.Marker`, ensuring 100% backward compatibility.
+- **Viewport Synchronization (`viewport_entity`)**: Automatically updates a Home Assistant `input_text` helper with current bounding coordinates (`southWestLat,southWestLng,northEastLat,northEastLng`) on map pan and zoom, enabling coordinate-based entity filtering.
+
+```yaml
+map_id: "YOUR_GOOGLE_CLOUD_MAP_ID"
+rendering_type: vector
+viewport_entity: "input_text.map_viewport"
+```
+
+---
+
+# 🧪 Automated CI/CD Validation
+
+The repository includes automated GitHub Actions workflows (`.github/workflows/validate.yml` and `hacs.yaml`) that validate:
+- JavaScript syntax check (`node --check`) for `google-maps-card.js` and `themes.js`
+- JSON schema and configuration validation for `hacs.json`
+- HACS repository structure compliance via `hacs/action`
+
+---
+
 ## 🔧 Parameters
 
 ### 🧹 General Options
@@ -663,6 +805,11 @@ You can choose your best theme—40 now and more to come!
 | `stale_marker_minutes` | number  | **NEW (v5.2)** Fade out a marker whose entity hasn't updated for this many minutes. `0` (default) = never fade. |
 | `show_popup_address`   | boolean | **NEW (v5.2)** Show a reverse-geocoded street address in marker popups. Default: `true`. |
 | `zone_occupancy_badge` | boolean | **NEW (v5.2)** Show a badge on each shown zone counting how many tracked entities are inside it. Default: `false`. |
+| `map_id`               | string  | **NEW** Google Maps Vector Map ID. Unlocks modern WebGL vector map capabilities and `AdvancedMarkerElement`. |
+| `filter_control`       | boolean | **NEW** Show unified frosted-glass layer filter dropdown button. Default: `false`. |
+| `filter_groups`        | list    | **NEW** Custom filter groups for layer dropdown (`id`, `label`, `icon`, `checked`). |
+| `viewport_entity`      | string  | **NEW** `input_text` helper to sync bounding coordinates (`southWestLat,southWestLng,northEastLat,northEastLng`). |
+| `transit_motion`       | object  | **NEW** Configuration for transit motion engine (GTFS2 compatible): `enabled`, `schedule_url`, `update_interval_ms`. |
 
 > ⚠️ Naming note: Older docs may mention `marker_clustring` / `clustring`. The correct key is **`marker_clustering`**.
 
@@ -695,6 +842,14 @@ You can choose your best theme—40 now and more to come!
 | `name`                          | string  | **NEW (v6.02)** Custom display name for this entity, replacing its Home Assistant name everywhere on the card (marker tooltip, popup title, panels). Leave unset to keep the HA name. |
 | `picture`                       | string  | **NEW (v6.02)** Custom marker image — give a photo to entities Home Assistant has no picture for (`device_tracker`, `sensor`, …), or replace a `person`'s. Accepts `/local/...` or a full URL. Rendered as the usual circular marker. |
 | `show_name`                     | boolean | **NEW (v6.02)** Print the entity's name under its marker on the map (the custom `name` when set, otherwise the HA name). Combines with `show_marker_labels` / `weather_badges` in one label. Default: `false`. |
+| `picture_shape`                 | string  | **NEW** Shape of picture marker: `circle` (default), `rectangle`, or `auto` (aspect-fit without cropping). Legacy alias `picture_aspect` supported. |
+| `picture_attribute`             | string  | **NEW** Attribute dot-path to extract image URL (e.g. `deals.0.image_url`, `brand_logo`). |
+| `filter_group`                  | string  | **NEW** Filter group ID for unified layer filter control (e.g. `transit_live`, `stations`, `gas`, `deals`). |
+| `popup_template`                | string  | **NEW** Custom Jinja2 popup template rendered dynamically via `<ha-markdown allow-svg breaks>`. Context: `entity`, `state`, `attributes`. |
+| `picture_height`                | number  | **NEW** Height in pixels for rectangular picture badges. Default: `24`. |
+| `picture_border_radius`         | number  | **NEW** Border radius in pixels for rectangular picture badges. Default: `6`. |
+| `card_background`               | string  | **NEW** Background color for rectangular picture badges. Default: `#ffffff`. |
+| `card_border_color`             | string  | **NEW** Border color for rectangular picture badges. |
 
 ### 👤 Geo Location Sources
 
@@ -1064,6 +1219,33 @@ entities:
     background_color: "#ffffff"
     history_dot_shape: triangle
     history_dot_filled: false
+
+  # Gas station entity with price badge and custom markdown popup
+  - entity: sensor.shell_regular_gas
+    filter_group: gas
+    picture_shape: rectangle
+    popup_template: >
+      <ha-markdown allow-svg breaks>
+      ### {{ attributes.friendly_name | default(entity) }}
+      **Regular Fuel:** ${{ state }} / L
+      {% if attributes.updated %}*Updated: {{ attributes.updated }}*{% endif %}
+      </ha-markdown>
+
+  # Store deals entity with aspect-fit image extracted from attributes
+  - entity: sensor.weekly_deals_groceries
+    filter_group: deals
+    picture_attribute: "deals.0.image_url"
+    picture_shape: auto
+    popup_template: >
+      <ha-markdown allow-svg breaks>
+      ### {{ attributes.friendly_name | default(entity) }}
+      {% if attributes.deals and attributes.deals[0] %}
+      **{{ attributes.deals[0].name }}**
+      <img src="{{ attributes.deals[0].image_url }}" style="max-width:100%;border-radius:8px;margin-top:6px;" />
+      {% else %}
+      *No active flyer deals available*
+      {% endif %}
+      </ha-markdown>
 ```
 
 ## ⭐ Support
