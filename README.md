@@ -14,7 +14,7 @@
 [![License](https://img.shields.io/github/license/cataseven/Google-Map-Card.svg?style=for-the-badge)](LICENSE)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1.0%2B-blue.svg?style=for-the-badge)
 
-[繁體中文說明 (Traditional Chinese)](README.zh-Hant.md) | [Documentation](#-documentation-directory) | [Quick Start](#-quick-start)
+[Documentation](#-documentation-directory) | [Quick Start](#-quick-start)
 
 ---
 
@@ -80,7 +80,6 @@ Explore the modular documentation guides:
 | ⚙️ **Configuration Reference** | Exhaustive configuration options, entity parameters, map controls, and YAML examples. | [Read Guide →](docs/reference.md) |
 | 📜 **Changelog & History** | Release notes and major upgrade milestones from v1.0 to v6.1. | [Read Guide →](docs/changelog.md) |
 | 🛠️ **Development & CI/CD** | Node.js syntax verification, GitHub Actions automated CI, and auto-entities setup. | [Read Guide →](docs/development.md) |
-| 🌏 **繁體中文指南** | Traditional Chinese complete quick start and feature overview. | [閱讀說明 →](README.zh-Hant.md) |
 
 ---
 
