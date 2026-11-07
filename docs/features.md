@@ -92,15 +92,37 @@ entities:
 
 ---
 
-## 💬 4. Dynamic Popups via `<ha-markdown allow-svg breaks>`
+## 💬 4. Dynamic Popups via `<ha-markdown allow-svg breaks>` & Lovelace Cards (`popup_card`)
 
-Define custom, dynamic info window popups rendered directly via Home Assistant's WebSocket `render_template` API.
+Define custom info window popups using either Jinja2 templates or any Lovelace card directly inside Google Maps!
 
-* **Full Markdown, HTML & SVG**: Renders inside `<ha-markdown allow-svg breaks>` for complete styling freedom.
-* **Dynamic Template Variables**: Templates receive `entity`, `state`, and `attributes` in context.
+* **Dynamic Jinja2 Popups (`popup_template`)**: Renders HTML/Markdown inside `<ha-markdown allow-svg breaks>` via Home Assistant's WebSocket `render_template` API. Receives `entity`, `state`, and `attributes` in context.
+* **Lovelace Cards in Popups (`popup_card`)**: Embed any Lovelace card (e.g. `custom:flex-table-card`, `entities`, `glance`, `tile`) directly inside the marker InfoWindow using Home Assistant's card helpers (`window.loadCardHelpers`). Supports `this.entity_id` dynamic replacement!
 
 ```yaml
 entities:
+  # 1. Lovelace card inside marker popup
+  - entity: sensor.departures_from_home_station
+    popup_card:
+      type: custom:flex-table-card
+      entities:
+        include:
+          - this.entity_id
+      clickable: true
+      max_rows: 5
+      title: 巴士離站時間
+      columns:
+        - name: 路線
+          data: next_departures_lines
+          modify: "'<div class=route>' + (x.route || x.route_long || '') + '</div>'"
+        - name: 時間
+          data: next_departures_lines
+          modify: x.departure
+        - name: 目的地
+          data: next_departures_lines
+          modify: "x.headsign"
+
+  # 2. Jinja2 template inside marker popup
   - entity: sensor.local_store_deals
     popup_template: >
       <ha-markdown allow-svg breaks>

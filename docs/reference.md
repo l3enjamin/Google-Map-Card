@@ -50,7 +50,9 @@ Configured under the `entities` list:
 | `card_background` | string | `#ffffff` | Background color for rectangular picture cards. |
 | `card_border_color` | string | `null` | Border color for rectangular picture cards. |
 | `filter_group` | string | `null` | Associate entity with a defined `filter_groups` ID. |
+| `popup_card` | object | `null` | Render any Lovelace card directly inside the map InfoWindow popup on marker click (supports `this.entity_id` placeholder). |
 | `popup_template` | string | `null` | Custom Jinja2 popup template rendered via `<ha-markdown allow-svg breaks>`. Context: `entity`, `state`, `attributes`. |
+| `popup_max_width` | number | `380` | Maximum width in pixels for popup InfoWindow (`popup_card` defaults to `420`). |
 | `icon_size` | integer | `30` | Size of marker icon in pixels. |
 | `icon_color` | string | `null` | Icon color (e.g. `#ffffff`). |
 | `background_color` | string | `null` | Background color for the marker pin. |
