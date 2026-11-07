@@ -1014,11 +1014,12 @@
       const _nh = _img.naturalHeight || _img.height || 1;
       const _ar = _nw / _nh;
 
-      const _baseH = _matchedEntCfg?.picture_height ?? _stateAttr.picture_height ?? _cardCfg.picture_height ?? 26;
+      const _baseH = _matchedEntCfg?.picture_height ?? _matchedEntCfg?.icon_size ?? _stateAttr.picture_height ?? _cardCfg.picture_height ?? 26;
+      const _baseW = _matchedEntCfg?.picture_width ?? _stateAttr.picture_width ?? _cardCfg.picture_width;
       const _maxW = _matchedEntCfg?.picture_max_width ?? _stateAttr.picture_max_width ?? _cardCfg.picture_max_width ?? 120;
       const _maxH = _matchedEntCfg?.picture_max_height ?? _stateAttr.picture_max_height ?? _cardCfg.picture_max_height ?? 60;
 
-      let _boxW = _baseH, _boxH = _baseH;
+      let _boxW = _baseW || _baseH, _boxH = _baseH;
       if (_aspectMode === 'auto') {
         if (_ar >= 1) {
           _boxH = _baseH;
@@ -1035,6 +1036,20 @@
             _boxW = Math.max(16, Math.round(_boxH * _ar));
           }
         }
+      } else if (_aspectMode === 'rectangle') {
+        if (_baseW) {
+          _boxW = Math.min(_baseW, _maxW);
+          _boxH = Math.min(_baseH, _maxH);
+        } else if (_ar > 1) {
+          _boxW = Math.min(Math.round(_baseH * Math.max(_ar, 1.35)), _maxW);
+          _boxH = _baseH;
+        } else {
+          _boxW = Math.min(Math.round(_baseH * 1.35), _maxW);
+          _boxH = _baseH;
+        }
+      } else if (_aspectMode === 'square') {
+        _boxW = _baseH;
+        _boxH = _baseH;
       }
 
       const _border = _matchedEntCfg?.picture_border_width ?? _stateAttr.picture_border_width ?? 1;
