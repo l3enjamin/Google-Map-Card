@@ -302,14 +302,14 @@
       let matchedCount = 0;
 
       for (const lineKey of lineKeys) {
-        const lineTrips = schedule.trips?.[lineKey]?.[effServiceId] || [];
+        const lineTrips = schedule.trips?.[lineKey]?.[serviceId] || [];
         for (let i = 0; i < lineTrips.length; i++) {
           const [startSec, pid] = lineTrips[i];
           const prof = schedule.profiles[pid];
           if (!prof) continue;
           const runtime = prof.pts[prof.pts.length - 1][0];
           const endSec = startSec + runtime;
-          if (startSec <= effSec && effSec <= endSec) {
+          if (startSec <= secNow && secNow <= endSec) {
             matchedCount++;
           }
         }
